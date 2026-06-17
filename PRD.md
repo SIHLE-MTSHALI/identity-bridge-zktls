@@ -1,206 +1,176 @@
 # Identity Bridge zkTLS PRD
 
-**Status:** Product design ready for implementation  
+**Status:** Full production product specification  
 **Last reviewed:** 2026-06-17  
 **Primary audience:** protocol integrators, privacy engineers, compliance teams, smart contract engineers, Chainlink reviewers  
-**Public-readiness goal:** define a credible privacy-preserving credential bridge without overstating deployment, regulatory, or cryptographic guarantees.
+**Product ambition:** build practical privacy-preserving credential infrastructure that lets users prove useful web2 or compliance attributes across chains without exposing raw identity data.
 
-## 1. Product Vision
+## 1. Product Thesis
 
-Identity Bridge zkTLS turns verified web2 attributes into privacy-preserving on-chain credentials. A user proves an attribute through a supported zkTLS provider. Chainlink CRE orchestrates verification. Confidential compute isolates sensitive proof material. The protocol stores only a credential result bound to a Chainlink ACE cross-chain identity and propagates that result to supported chains through CCIP.
+Identity Bridge zkTLS turns verified off-chain attributes into portable, privacy-preserving on-chain credentials. Users prove attributes through supported zkTLS or compliance providers. Chainlink workflows coordinate verification, confidential processing boundaries protect sensitive proof material where available, and CCIP propagates credential state across chains.
 
-The product goal is simple: prove eligibility without publishing identity data.
+The target is not a demo. The target is a production-grade identity and eligibility layer that DeFi protocols, DAOs, marketplaces, and RWA issuers can integrate when they need durable, revocable, minimally revealing credentials.
 
-## 2. Problem
+## 2. Real-World Problem
 
-DeFi, DAO, RWA, and marketplace protocols need identity and eligibility signals, but current approaches create unacceptable tradeoffs:
+Protocols increasingly need identity and eligibility signals, but common approaches either leak sensitive data, depend on one centralized API, force repeated verification across apps, or create credentials that are hard to revoke and hard to use across chains.
 
-- On-chain KYC leaks sensitive data or permanent identifiers.
-- Centralized identity APIs create single points of failure and vendor lock-in.
-- zkTLS providers have fragmented SDKs, proof formats, and verification contracts.
-- Credentials verified on one chain or app rarely transfer cleanly to another.
-- Credential expiry, revocation, and renewal are often afterthoughts.
+The product must solve for:
 
-Identity Bridge zkTLS provides a common product and developer interface for these proofs while keeping private data outside public chain state.
+1. Attribute verification without public PII exposure.
+2. Provider-neutral credential issuance.
+3. Clear credential expiry, renewal, revocation, and dispute states.
+4. Cross-chain credential portability through local readable state.
+5. Safe integration defaults that prevent protocols from treating stale or unknown credentials as valid.
 
-## 3. Target Users
+## 3. Product Principles
 
-| Persona | Job to be done | Success condition |
-| --- | --- | --- |
-| DeFi protocol developer | Gate access based on verified attributes | Can call one contract function and receive a boolean |
-| User | Prove an attribute without exposing raw account or identity data | Completes verification and receives a portable credential |
-| RWA issuer | Enforce compliance rules without storing investor PII on-chain | Can evaluate policy from credential status and freshness |
-| DAO operator | Reduce sybil risk while preserving voter privacy | Can define credential-gated proposals or voting rules |
-| zkTLS provider | Make proofs usable across more protocols | Can implement one adapter and reach multiple chains |
+- Minimal disclosure: expose only the credential state required by an application.
+- Provider neutrality: adapters can support Reclaim-style, TLSNotary-style, KYC/KYB, and future proof providers.
+- No raw PII on public chain state or public logs.
+- Every credential has a lifecycle: issue, active, renew, expire, suspend, revoke, dispute.
+- Cross-chain state is eventually consistent and must expose freshness.
+- Legal and compliance claims require separate review; the product provides infrastructure, not legal guarantees.
 
-## 4. Product Principles
+## 4. Full Product Scope
 
-- Boolean-first privacy: only the minimum result needed by an application should be exposed.
-- Provider neutrality: Reclaim, TLSNotary, and future providers should plug into the same adapter pattern.
-- No permanent PII on-chain: do not store raw identifiers, raw proofs, names, documents, account handles, or API responses.
-- Clear expiry: every credential must have a TTL and renewal path.
-- Local reads: applications should query credential state on their own chain after CCIP propagation.
-- Revocation is a first-class product feature, not an admin workaround.
+### Core Production Capabilities
 
-## 5. Scope
+- Credential schema registry with type, version, TTL, accepted providers, policy metadata, and revocation rules.
+- Provider registry with adapter metadata, schema compatibility, status, pause, deprecation, and revocation.
+- Chainlink workflow orchestration for proof intake, provider routing, validation, result construction, and submission.
+- Confidential processing boundary for raw proof/provider material where supported.
+- Credential registry storing only minimal status, expiry, provider ID, schema version, evidence hash, nonce, and CCID binding.
+- CCIP propagation of credential state to destination chain registries.
+- Policy adapter for safe integrator checks with reason codes.
+- Holder portal for request, status, renewal, revocation, and propagation visibility.
+- Integrator SDK and examples for Solidity and TypeScript.
+- Privacy model, provider onboarding guide, threat model, and incident response plan.
 
-### MVP Scope
+### Scale and Ecosystem Capabilities
 
-- Credential type registry with schemas, provider mappings, thresholds, TTLs, and revocation policy.
-- Provider adapter interface for zkTLS proof verification workflows.
-- CRE workflow for proof intake, provider routing, validation, and result submission.
-- Confidential compute boundary for raw proof handling where available.
-- Credential registry contract storing credential hash, CCID, status, expiry, issuer/provider, and revocation state.
-- CCIP propagation of credential status to destination chain registries.
-- Simple integration SDK examples for Solidity and TypeScript.
-- Public documentation for privacy model, trust boundaries, and limitations.
+- Multiple credential classes: account ownership, account age, contribution history, proof of uniqueness, accreditation status, jurisdiction class, DAO membership, partner-specific eligibility.
+- Multi-provider redundancy and provider-specific risk controls.
+- Credential recovery and account abstraction support.
+- Issuer-controlled, user-controlled, and governance-controlled revocation modes by schema.
+- Analytics for credential freshness, propagation state, provider health, and integrator usage.
 
-### Non-Goals for MVP
+## 5. Explicit Boundaries
 
-- Becoming a KYC provider.
-- Storing user documents, account handles, raw TLS transcripts, or legal identity data.
-- Supporting every zkTLS provider on day one.
-- Proving unique humanity as a standalone identity product.
-- Making legal claims of GDPR, CCPA, MiCA, or securities-law compliance without external counsel review.
+The product must not store raw documents, legal names, account handles, raw TLS transcripts, raw proofs, provider reports, tax identifiers, phone numbers, or email addresses in public chain state or events.
+
+The product must not claim GDPR, CCPA, MiCA, securities-law, KYC, or AML compliance without qualified legal review and jurisdiction-specific documentation.
 
 ## 6. User Journeys
 
-### Credential Holder Journey
+### Credential Holder
 
-1. User selects a credential type requested by a protocol.
-2. User chooses a supported zkTLS provider.
-3. User completes provider-specific proof generation.
-4. CRE workflow validates the proof and computes the credential result.
-5. The on-chain registry stores a credential hash and status bound to the user's CCID.
-6. CCIP propagates the credential to selected chains.
-7. User can view status, expiry, supported chains, and revocation controls.
+1. User selects a credential requested by an application.
+2. User chooses a supported provider.
+3. User completes proof generation off-chain.
+4. Chainlink workflow validates the proof and emits a minimal credential result.
+5. Registry stores credential state bound to the user's CCID.
+6. Credential state propagates to selected chains.
+7. User can renew, revoke, or inspect freshness and destination status.
 
-### Integrator Journey
+### Protocol Integrator
 
-1. Integrator reviews credential schemas and trust assumptions.
-2. Integrator configures accepted credential types, minimum freshness, and destination chains.
-3. Integrator calls `hasCredential(ccid, credentialId)` or an equivalent policy helper.
-4. Integrator handles false, expired, revoked, and unknown states distinctly.
-5. Integrator monitors registry events for changes and revocations.
+1. Integrator reviews supported credential schemas and trust assumptions.
+2. Integrator configures accepted credential type, schema version, provider set, and freshness policy.
+3. Integrator calls a policy adapter or registry view.
+4. Integrator handles `valid`, `expired`, `revoked`, `unknown`, `pending`, and `disputed` distinctly.
+5. Integrator monitors credential update and revocation events.
+
+### Provider
+
+1. Provider implements the adapter contract/interface and test vectors.
+2. Provider documents proof format, freshness, privacy assumptions, and failure modes.
+3. Governance or schema admin approves provider support.
+4. Provider health and status remain visible to integrators.
 
 ## 7. Functional Requirements
 
-| ID | Requirement | Priority | Acceptance criteria |
-| --- | --- | --- | --- |
-| FR-001 | Register credential schemas | P0 | Admin can define type, parameters, TTL, provider set, and revocation mode |
-| FR-002 | Bind credentials to CCID | P0 | Credential state is keyed by CCID and credential ID, not only wallet address |
-| FR-003 | Verify zkTLS proof through adapter | P0 | Provider-specific proof path returns deterministic valid/invalid result |
-| FR-004 | Store minimal credential state | P0 | Registry stores no raw PII, raw proof, account handle, or transcript |
-| FR-005 | Query credential status | P0 | Integrators can distinguish valid, expired, revoked, unknown, and pending |
-| FR-006 | Propagate via CCIP | P0 | Destination registry accepts only validated messages from authorized source |
-| FR-007 | Support expiry and renewal | P0 | Expired credentials fail access checks until renewed |
-| FR-008 | Support revocation | P0 | Authorized revocation changes state and propagates to destination chains |
-| FR-009 | Support provider addition | P1 | New provider can be registered without changing core registry storage layout |
-| FR-010 | Provide SDK examples | P1 | Solidity and TypeScript examples compile and show expected status handling |
-| FR-011 | Emit audit events | P0 | Issue, renew, revoke, expire, propagate, and provider changes emit indexed events |
+| ID | Requirement | Acceptance criteria |
+| --- | --- | --- |
+| FR-001 | Credential schema registry | Schemas define type, version, TTL, accepted providers, and revocation mode |
+| FR-002 | Provider adapter model | New providers can be added without changing core credential storage |
+| FR-003 | Minimal storage | Registry stores no raw PII, proof, transcript, account handle, or provider report |
+| FR-004 | Credential lifecycle | Issue, renew, expire, suspend, revoke, dispute, and propagation states are explicit |
+| FR-005 | Safe policy checks | Integrators receive reason-coded allow/deny decisions |
+| FR-006 | CCID binding | Credentials bind to a cross-chain identity concept, not only one wallet address |
+| FR-007 | CCIP propagation | Destination registries validate source and expose freshness |
+| FR-008 | Provider risk controls | Provider pause/deprecation/revocation affects new issuance and policy decisions |
+| FR-009 | Privacy audits | Tests and docs prove raw sensitive data is not stored or emitted |
+| FR-010 | Developer experience | SDK examples compile and demonstrate safe status handling |
 
 ## 8. Chainlink Architecture
 
-- CRE coordinates proof verification workflows and provider adapter execution.
-- Confidential compute is the intended boundary for raw proof material and provider response handling where supported.
-- ACE provides the cross-chain identity concept used to decouple credentials from a single wallet address.
-- CCIP propagates credential status updates to supported destination chains.
-- Automation monitors credential expiry and schedules renewal reminders or expiration state updates.
+- Chainlink CRE coordinates proof workflows, provider adapters, consensus where needed, and result submission.
+- Confidential compute is the preferred boundary for sensitive proof/provider processing where supported.
+- CCIP propagates credential state to destination chains.
+- Automation supports expiry checks, renewal notifications, revocation propagation, and provider health tasks.
 
 Design constraints:
 
-- No CRE workflow should log raw proof material or PII.
-- CCIP receivers must validate router, source chain, source sender, message type, nonce, and credential schema version.
-- Destination registries must treat propagated credentials as eventually consistent and expose last-updated timestamps.
-- Integrators must be able to opt into strict freshness windows.
+- Workflows must never log raw proof material or PII.
+- CCIP receivers must validate router, source chain, source sender, payload type, schema version, and nonce.
+- Destination state must expose last update time and source chain.
+- SDKs must make unsafe defaults hard.
 
-## 9. Smart Contract Architecture
+## 9. Security and Privacy Requirements
 
-| Contract | Responsibility |
+| Risk | Required mitigation |
 | --- | --- |
-| `CredentialRegistry` | Stores credential status, expiry, issuer, schema version, and revocation state |
-| `CredentialBridge` | Receives CRE verification results and initiates CCIP propagation |
-| `ProviderRegistry` | Manages supported zkTLS providers and schema compatibility |
-| `CCIDResolver` | Maps wallets or account abstractions to CCIDs and recovery state |
-| `PolicyManagerAdapter` | Helper for integrators to evaluate credential requirements |
-| `CrossChainCredentialReceiver` | Receives and validates CCIP credential updates |
-| `EmergencyControls` | Pauses issue, renew, revoke, or propagation actions independently |
+| PII leakage | No raw sensitive fields in storage, events, logs, fixtures, or docs |
+| Provider compromise | Provider pause, short TTLs, schema versioning, revocation, and monitoring |
+| Credential replay | Bind result to CCID, schema, nonce, chain context, provider, and expiry |
+| Stale destination state | Freshness timestamps and strict policy checks |
+| Integrator misuse | Reason-coded policy adapter and SDK warnings |
+| Governance abuse | Timelocked schema/provider changes and public events |
+| Legal overclaim | Clear docs separating infrastructure from legal compliance |
 
-## 10. Credential State Model
+## 10. Production Readiness Gates
 
-Suggested status enum:
+### Gate 1: Production Foundation
 
-- `UNKNOWN`: no credential exists.
-- `PENDING`: verification started but not finalized.
-- `VALID`: credential accepted and within TTL.
-- `EXPIRED`: credential passed TTL and must be renewed.
-- `REVOKED`: credential was explicitly revoked and cannot be used.
-- `DISPUTED`: credential is under review due to provider or abuse signal.
+- Core contracts, workflows, SDK, portal, and tests are implemented.
+- At least two credential schemas and one fixture-backed provider work end to end.
+- Privacy tests prove raw sensitive data is not stored or emitted.
 
-Applications must not treat unknown, expired, revoked, or disputed as equivalent. The SDK should make unsafe defaults hard.
+### Gate 2: Public Testnet Pilot
 
-## 11. UX and Developer Experience
+- Source and destination testnet registries propagate credential state.
+- Integrator example handles all credential states safely.
+- Monitoring, runbooks, and provider health checks exist.
 
-The project should expose three surfaces:
+### Gate 3: Provider-Backed Pilot
 
-- User portal: prove credential, view status, renew, revoke, export proof receipt.
-- Integrator docs: contract addresses, supported credentials, query examples, status handling, threat model.
-- Provider docs: adapter interface, schema registration, test vectors, privacy requirements.
+- At least one real provider adapter is reviewed and tested.
+- Legal/privacy review is complete for the supported credential class.
+- Revocation, renewal, incident response, and provider-pause drills are complete.
 
-Public docs must state what the system does not prove. Example: a GitHub-stars credential proves that a supported provider attested to a threshold at a time; it does not prove user quality, legal identity, or future behavior.
+### Gate 4: Production Network
 
-## 12. Security and Privacy Requirements
+- Multiple credential schemas, providers, chains, and integrators are supported.
+- Credential lifecycle, analytics, support, and audit exports are operational.
+- Security review and ongoing monitoring are in place.
 
-| Risk | Mitigation |
-| --- | --- |
-| PII leakage | Raw proof material stays off-chain; no raw identifiers in storage or events |
-| Provider compromise | Provider allowlist, per-provider pause, schema versioning, short TTLs |
-| Credential replay | Bind proof result to CCID, chain ID, schema, nonce, and expiry |
-| Cross-chain spoofing | Validate CCIP router, source chain, source sender, schema version, and nonce |
-| Stale credentials | TTL enforcement and freshness checks in policy helpers |
-| Governance abuse | Timelocked provider/schema changes and public events |
-| Integrator misuse | SDK exposes safe status handling and warnings for stale destination state |
-
-## 13. Verification Plan
-
-Required checks before testnet launch:
-
-- Unit tests for credential issue, query, expiry, renew, revoke, and provider changes.
-- Fuzz tests for credential hashes, schema parameters, TTL boundaries, and status transitions.
-- Invariant tests: no raw PII fields, revoked never returns valid, expired never returns valid, destination updates are monotonic by nonce.
-- CCIP local simulator tests for propagation, replay attempts, wrong source, wrong schema, and stale messages.
-- CRE simulation tests for valid proof, invalid proof, malformed proof, unsupported provider, provider timeout, and no-log privacy assertions.
-- Static analysis with no unresolved high or critical findings.
-
-## 14. Launch Criteria
-
-The project is ready for public testnet when:
-
-- At least two credential types and one zkTLS provider are implemented end to end.
-- One source chain and two destination chains can issue and propagate credential status.
-- Integrator example contract demonstrates valid, expired, revoked, and unknown handling.
-- Privacy documentation is complete and avoids legal overclaims.
-- Security review confirms no raw proof or PII is emitted, stored, or committed.
-
-## 15. Success Metrics
+## 11. Success Metrics
 
 | Metric | Target |
 | --- | --- |
-| Credential query latency | Local chain read under normal RPC latency |
-| Cross-chain propagation visibility | 100% of messages tracked by message ID and status |
-| Raw PII in on-chain state/events | 0 tolerated |
-| Revocation propagation test coverage | Source and destination chains covered |
-| Integrator time to first query | Under 15 minutes from docs |
+| Raw PII in chain state/events/logs | 0 tolerated |
+| Revoked or expired credential allowed | 0 tolerated |
+| Stale destination state presented as valid | 0 tolerated |
+| Provider pause propagation | Visible to integrators and holders |
+| Integrator time to first safe check | Under 20 minutes from docs |
+| Credential lifecycle auditability | Issue, renew, revoke, expire, and propagate events visible |
 
-## 16. Open Questions
+## 12. Documentation Requirements
 
-- Which zkTLS provider should be first for MVP based on available testnet tooling?
-- What credential schemas are most compelling for launch: GitHub, KYC-provider status, employment, DAO membership, or exchange account standing?
-- How should CCID recovery work when a user loses all wallets associated with an identity?
-- What legal review is required before marketing the system for RWA or KYC use cases?
-- Should revocation be issuer-controlled, user-controlled, governance-controlled, or schema-specific?
+Before public release, the repository must include architecture, privacy model, provider adapter guide, SDK guide, deployment guide, operations runbook, incident response plan, threat model, and audit readiness checklist.
 
-## 17. References
+## 13. References
 
 - Chainlink CRE: https://docs.chain.link/cre
 - Chainlink CRE TypeScript WASM runtime: https://docs.chain.link/cre/concepts/typescript-wasm-runtime
