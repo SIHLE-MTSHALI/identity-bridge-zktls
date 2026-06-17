@@ -1,88 +1,57 @@
 # Contributing to Identity Bridge zkTLS
 
-Thank you for helping improve Identity Bridge zkTLS. This repository is intended to become public, so contributions should make the project more credible, privacy-preserving, and buildable without overstating what exists today.
+Thank you for helping improve Identity Bridge zkTLS. This project is intended to become practical, production-grade privacy-preserving credential infrastructure, not a prototype.
 
 ## Current Stage
 
-This project is in product design and early implementation planning. Treat `PRD.md` as the canonical scope document until code, deployment scripts, and audits exist.
+The repository is in product and architecture design. Treat `PRD.md` as the canonical product specification and `ENGINEERING_SPEC.md` as the engineering build contract.
 
-Do not add claims about production deployments, supported KYC use in regulated settings, legal compliance, audits, Chainlink endorsement, bug bounties, or provider partnerships unless there is verifiable evidence in the repository.
+Do not add claims about production deployments, supported regulated use, legal compliance, audits, Chainlink endorsement, bug bounties, or provider partnerships unless there is verifiable evidence in the repository.
 
 ## Contribution Focus
 
-High-value contributions should improve one of these areas:
+High-value contributions improve the full product path:
 
-- Credential schema design, status modeling, TTLs, renewal, and revocation flows.
-- zkTLS provider adapter interfaces and test vectors.
-- CRE workflow design for proof intake, provider routing, validation, and result submission.
-- Confidential-compute and privacy boundaries for raw proof material.
-- CCID binding, wallet recovery assumptions, and cross-chain credential propagation through CCIP.
-- Integrator SDK examples that handle valid, expired, revoked, unknown, pending, and disputed states safely.
-- Public privacy docs, trust-boundary diagrams, and limitations language.
+- Credential schemas, lifecycle states, TTLs, renewal, dispute, and revocation flows.
+- Provider registry and zkTLS/compliance provider adapter interfaces.
+- Chainlink workflow proof intake, validation, result submission, and propagation.
+- Confidential processing and no-log privacy boundaries.
+- CCID binding, wallet recovery assumptions, and CCIP credential propagation.
+- SDK and portal behavior for safe status handling.
+- Privacy model, provider guide, operations runbooks, and threat-model coverage.
 
 ## Product Quality Bar
 
-Contributions should keep the product privacy-first and integrator-safe:
-
-- Expose the minimum useful credential result.
-- Never store or emit raw PII, raw TLS transcripts, account handles, documents, or provider responses.
-- Make expiry, revocation, freshness, and provider trust visible to integrators.
-- Treat legal and compliance claims as out of scope unless reviewed externally.
-- Keep docs aligned with the MVP and non-goals in `PRD.md`.
-
-## Engineering Standards
-
-When implementation begins, code contributions should follow these expectations:
-
-- Use Foundry for Solidity contracts unless the repository later standardizes otherwise.
-- Pin compiler and dependency versions.
-- Add NatSpec for public and external contract interfaces.
-- Use role-based access control and scoped pause controls for provider, schema, issue, renewal, revocation, and propagation paths.
-- Validate CCIP router, source chain selector, source sender, schema version, nonce, and message type.
-- Keep CRE workflow outputs deterministic and avoid logging raw proof material.
-- Store hashes, compact enums, or commitments for sensitive fields.
-- Use `bigint` for on-chain values in TypeScript workflows and tests.
+- Build toward the production credential network described in `PRD.md`.
+- Use staged release gates for safety, not reduced product ambition.
+- Never store or emit raw PII, raw TLS transcripts, account handles, documents, provider responses, or raw proofs.
+- Make expiry, revocation, freshness, provider status, and destination state explicit.
+- Keep docs aligned with the full product PRD, engineering spec, and production readiness gates.
 
 ## Verification Expectations
 
-Use the narrowest useful check first, then broaden.
-
 | Change type | Expected verification |
 | --- | --- |
-| Docs only | Check links, headings, terminology, and alignment with `PRD.md` |
-| Solidity contracts | `forge fmt --check`, unit tests, fuzz tests, and relevant invariant tests |
-| CRE workflows | Simulation tests for valid proof, invalid proof, malformed proof, unsupported provider, provider timeout, and no-log privacy assertions |
-| CCIP flows | Local simulator tests for propagation, replay, wrong source, wrong schema, stale nonce, and destination pause |
-| SDK examples | Compile examples and demonstrate safe handling of all credential states |
+| Docs only | Check terminology, links, and alignment with `PRD.md` and `ENGINEERING_SPEC.md` |
+| Contracts | Formatting, unit tests, fuzz tests, and relevant invariant tests |
+| Workflows | Tests for valid proof, invalid proof, malformed proof, unsupported provider, timeout, and no-log privacy assertions |
+| CCIP flows | Tests for propagation, replay, wrong source, wrong schema, stale nonce, and destination freshness |
+| SDK/portal | Tests showing safe handling of valid, expired, revoked, unknown, pending, suspended, and disputed states |
 
-If a check cannot run, explain the blocker in the PR instead of presenting the work as fully verified.
+If a check cannot run, document the blocker in the PR.
 
 ## Pull Request Checklist
 
-Before opening a PR:
-
-- The change maps to a requirement, risk, or open question in `PRD.md`.
-- Public-facing docs do not include fake deployments, fake providers, fake legal claims, fake audit status, or fake bounty details.
+- Change maps to `PRD.md` or `ENGINEERING_SPEC.md`.
+- Public docs avoid fake deployments, fake providers, fake legal claims, fake audits, and fake bounty details.
 - Privacy-sensitive changes state what data is processed, stored, emitted, logged, and intentionally excluded.
 - Tests or verification notes cover the behavior changed.
-- New environment variables are documented with placeholders only.
+- New environment variables use placeholders only.
 - No secrets, raw proofs, PII, provider credentials, private keys, API keys, or access tokens are committed.
 
 ## Commit Style
 
-Use Conventional Commits:
-
-- `feat:` for product behavior
-- `fix:` for bug fixes
-- `docs:` for documentation
-- `test:` for tests
-- `refactor:` for internal structure changes
-- `security:` for security hardening
-- `chore:` for maintenance
-
-## Review Standard
-
-Reviewers should check correctness, scope control, privacy impact, provider trust assumptions, replay resistance, test coverage, and whether the change makes the future public repository more trustworthy.
+Use Conventional Commits: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `security:`, or `chore:`.
 
 ## License
 
