@@ -1,36 +1,26 @@
 # Identity Bridge zkTLS Engineering Specification
 
-**Status:** Implementation-ready MVP build contract  
+**Status:** Full production engineering specification  
 **Last reviewed:** 2026-06-17  
 **Canonical product document:** `PRD.md`  
-**Audience:** engineering team building the first complete MVP without further product consultation
+**Audience:** engineering team building the complete product through production release gates
 
 ## 1. Build Contract
 
-This document turns the PRD into an executable engineering handoff. Engineers should be able to build the MVP described here without asking for product decisions. If this file conflicts with `PRD.md`, treat `PRD.md` as the product intent and this file as the implementation contract; update both in the same PR.
+This document is not an MVP brief. It defines the production engineering target for a privacy-preserving credential bridge that can support real providers, real integrators, and cross-chain credential state after security, privacy, and legal readiness gates are satisfied.
 
-Escalate only for real provider contracts, production identity data, legal/compliance claims, secrets, or mainnet deployment. Do not escalate for MVP credential types, state model, contract names, test scope, or default policy values; those are fixed below.
+Engineers should not need product clarification for architecture, credential lifecycle, contract responsibilities, workflow shape, reason codes, tests, or release gates. Escalate only for real provider agreements, legal/compliance claims, production identity data, secrets, or mainnet deployment.
 
-## 2. Fixed MVP Decisions
+## 2. Product Delivery Model
 
-| Topic | MVP decision |
-| --- | --- |
-| First credential type | `GITHUB_ACCOUNT_MIN_AGE_180D` |
-| Second credential type | `GITHUB_REPO_CONTRIBUTOR` for a configured repository |
-| First provider path | `MockZkTlsProvider` with deterministic fixtures |
-| First real-provider adapter | Reclaim-style adapter interface, implemented behind a feature flag when testnet tooling is available |
-| Identity binding | `ccid = keccak256(abi.encode(wallet, recoverySalt, version))` for MVP |
-| Credential storage | Store status, expiry, schema version, provider ID, evidence hash, and revocation nonce only |
-| Raw data policy | No raw PII, raw TLS transcript, account handle, document, provider response, or raw proof on-chain or in events |
-| Source chain | Local simulator first; Sepolia for public testnet target if supported at implementation time |
-| Destination chain | Local simulator first; Avalanche Fuji for public testnet target if supported at implementation time |
-| Propagation | CCIP message carries credential state update and nonce |
-| Default TTL | 30 days in production config; 5 minutes in tests |
-| Governance | Timelocked schema/provider changes; local tests use deterministic admin accounts |
+| Release gate | Purpose | Required outcome |
+| --- | --- | --- |
+| Production Foundation | Build the complete architecture locally | Contracts, workflows, provider fixtures, SDK, portal, and tests prove the full system shape |
+| Public Testnet Pilot | Prove cross-chain credential state safely | Testnet registries, CCIP propagation, monitoring, no real identity data |
+| Provider-Backed Pilot | Connect reviewed real provider path | Privacy/legal review, provider adapter, revocation drills, incident runbooks |
+| Production Network | Operate practical credential infrastructure | Multiple schemas, providers, chains, integrators, monitoring, and support processes |
 
-Open questions in `PRD.md` are future production questions. They do not block this MVP.
-
-## 3. Target Architecture
+## 3. Target Repository Architecture
 
 ```text
 contracts/
@@ -38,8 +28,10 @@ contracts/
     CredentialRegistry.sol
     CredentialBridge.sol
     ProviderRegistry.sol
+    SchemaRegistry.sol
     CCIDResolver.sol
     PolicyManagerAdapter.sol
+    CrossChainCredentialSender.sol
     CrossChainCredentialReceiver.sol
     EmergencyControls.sol
   test/
@@ -47,45 +39,46 @@ contracts/
 workflows/
   src/
     credential-verify.ts
+    credential-renew.ts
+    credential-revoke.ts
     adapters/mock-zktls.ts
     adapters/reclaim.ts
-    submit-credential.ts
+    adapters/tlsnotary.ts
   test/
 packages/sdk/
   src/
     credentialStatus.ts
     policyClient.ts
-    generated ABIs
+    providerClient.ts
 apps/portal/
   src/
-    holder status, credential request, renewal, revoke, and integrator demo views
+    holder, integrator, provider, schema-admin, and audit views
 docs/
   architecture.md
   privacy-model.md
-  runbook.md
+  provider-adapter-guide.md
+  operations-runbook.md
+  incident-response.md
   threat-model.md
 ```
 
-Use Foundry for contracts, TypeScript for CRE-style workflows and SDK code, and Chainlink Local for CCIP tests.
+## 4. Required Contract System
 
-## 4. Credential Model
+### `SchemaRegistry`
 
-Required enums:
+Must register credential type, schema version, TTL, accepted providers, revocation mode, and policy metadata.
 
-```solidity
-enum CredentialStatus { Unknown, Pending, Valid, Expired, Revoked, Disputed }
-enum ProviderStatus { Unknown, Active, Paused, Deprecated, Revoked }
-```
+### `ProviderRegistry`
 
-Required credential key:
+Must register provider ID, metadata URI, supported schema versions, status, pause/deprecation/revocation state, and health metadata.
 
-```solidity
-bytes32 credentialKey = keccak256(abi.encode(ccid, credentialType, schemaVersion));
-```
+### `CredentialRegistry`
 
-Required credential record:
+Must store only minimal credential state:
 
 ```solidity
+enum CredentialStatus { Unknown, Pending, Valid, Expired, Suspended, Revoked, Disputed }
+
 struct CredentialRecord {
     bytes32 ccid;
     bytes32 credentialType;
@@ -100,202 +93,68 @@ struct CredentialRecord {
 }
 ```
 
-Status handling rules:
-
-- `Unknown`, `Pending`, `Expired`, `Revoked`, and `Disputed` must never pass access checks.
-- `Valid` passes only when `block.timestamp <= expiresAt` and provider/schema are still accepted by the policy.
-- Expiry can be lazy: view functions may report `Expired` even before an on-chain state transition occurs.
-- Revocation increments nonce and must propagate cross-chain.
-
-## 5. Contract Modules
-
-### `ProviderRegistry`
-
-Responsibilities:
-
-- Register provider ID, adapter metadata URI, supported schema versions, and status.
-- Pause or deprecate a provider without deleting history.
-- Emit provider lifecycle events.
-
-Required functions:
-
-```solidity
-function registerProvider(bytes32 providerId, string calldata metadataURI, uint32[] calldata schemaVersions) external;
-function setProviderStatus(bytes32 providerId, ProviderStatus status) external;
-function isProviderAccepted(bytes32 providerId, uint32 schemaVersion) external view returns (bool);
-```
-
-### `CredentialRegistry`
-
-Responsibilities:
-
-- Store credential records.
-- Expose safe query helpers.
-- Enforce status transitions.
-- Prevent raw proof or PII storage.
-
-Required functions:
-
-```solidity
-function getCredential(bytes32 ccid, bytes32 credentialType, uint32 schemaVersion) external view returns (CredentialRecord memory);
-function getStatus(bytes32 ccid, bytes32 credentialType, uint32 schemaVersion) external view returns (CredentialStatus status, uint64 expiresAt, uint64 updatedAt);
-function hasValidCredential(bytes32 ccid, bytes32 credentialType, uint32 schemaVersion) external view returns (bool);
-function revokeCredential(bytes32 ccid, bytes32 credentialType, uint32 schemaVersion, bytes32 reasonCode) external;
-```
-
-Required events:
-
-```solidity
-event CredentialIssued(bytes32 indexed ccid, bytes32 indexed credentialType, bytes32 indexed providerId, uint32 schemaVersion, uint64 expiresAt, bytes32 evidenceHash);
-event CredentialRenewed(bytes32 indexed ccid, bytes32 indexed credentialType, uint32 schemaVersion, uint64 expiresAt, uint64 nonce);
-event CredentialRevoked(bytes32 indexed ccid, bytes32 indexed credentialType, uint32 schemaVersion, uint64 nonce, bytes32 reasonCode);
-event CredentialStatusChanged(bytes32 indexed ccid, bytes32 indexed credentialType, uint32 schemaVersion, CredentialStatus status, uint64 nonce);
-```
+Required invariant: unknown, pending, expired, suspended, revoked, and disputed credentials must never pass policy checks.
 
 ### `CredentialBridge`
 
-Responsibilities:
+Must accept authorized Chainlink workflow results, validate provider/schema/TTL/nonce/evidence, update source state, and trigger propagation.
 
-- Accept authorized workflow results.
-- Validate provider, schema, TTL, nonce, and evidence hash.
-- Update source registry.
-- Initiate CCIP propagation.
+### `CrossChainCredentialSender` and `CrossChainCredentialReceiver`
 
-Required workflow result:
-
-```solidity
-struct CredentialResult {
-    bytes32 ccid;
-    bytes32 credentialType;
-    bytes32 providerId;
-    bytes32 evidenceHash;
-    uint32 schemaVersion;
-    uint64 issuedAt;
-    uint64 expiresAt;
-    uint64 nonce;
-    CredentialStatus status;
-}
-```
-
-### `CrossChainCredentialReceiver`
-
-Must validate router, source chain selector, source sender, payload type, schema version, nonce ordering, and provider acceptance. Stale nonce messages must be ignored and emitted as rejected.
+Must validate CCIP router, source chain, source sender, payload type, schema version, nonce, provider state, and destination freshness.
 
 ### `PolicyManagerAdapter`
 
-Required helper:
+Must provide safe reason-coded decisions:
 
 ```solidity
 function evaluate(bytes32 ccid, CredentialRequirement calldata requirement) external view returns (bool allowed, bytes32 reasonCode);
 ```
 
-Reason codes must distinguish `UNKNOWN`, `PENDING`, `EXPIRED`, `REVOKED`, `DISPUTED`, `PROVIDER_PAUSED`, `SCHEMA_UNSUPPORTED`, and `STALE_DESTINATION`.
+Required reason codes include `UNKNOWN`, `PENDING`, `EXPIRED`, `SUSPENDED`, `REVOKED`, `DISPUTED`, `PROVIDER_PAUSED`, `SCHEMA_UNSUPPORTED`, and `STALE_DESTINATION`.
 
-## 6. CRE Workflow Specification
+## 5. Chainlink Workflow System
 
 ### Workflow: `credential-verify`
 
-Trigger:
+Responsibilities:
 
-- User request from portal or integrator demo.
-- Manual trigger in tests.
+1. Load provider adapter and schema policy.
+2. Validate proof or provider result.
+3. Compute CCID and evidence hash without exposing raw proof material.
+4. Submit credential result.
+5. Trigger CCIP propagation when destination chains are configured.
 
-Inputs:
+### Workflow: `credential-renew`
 
-```json
-{
-  "wallet": "0x...",
-  "recoverySaltHash": "bytes32",
-  "credentialType": "GITHUB_ACCOUNT_MIN_AGE_180D",
-  "schemaVersion": 1,
-  "providerId": "mock-zktls",
-  "proofBundleRef": "fixture://github-account-age-valid"
-}
-```
+Must renew only after fresh provider verification. Expiring credentials should be visible before they fail access checks.
 
-Algorithm:
+### Workflow: `credential-revoke`
 
-1. Load provider adapter by `providerId`.
-2. Validate schema support and credential type.
-3. Verify proof fixture or provider proof.
-4. Compute `ccid` from wallet, recovery salt hash, and version.
-5. Compute `evidenceHash` from normalized proof result, not raw transcript.
-6. Emit `CredentialResult` with status `Valid` or `Disputed`; invalid proofs do not issue a credential.
-7. Submit result to `CredentialBridge`.
+Must propagate revocations across all configured chains and make revoked state fail immediately on the source chain.
 
-Outputs:
+Workflow logs must never contain raw PII, raw proof, raw TLS transcript, account handle, document, email, phone, or provider report.
 
-```json
-{
-  "ccid": "bytes32",
-  "credentialType": "bytes32",
-  "providerId": "bytes32",
-  "schemaVersion": 1,
-  "status": "Valid",
-  "issuedAt": 1710000000,
-  "expiresAt": 1712592000,
-  "nonce": 1,
-  "evidenceHash": "bytes32"
-}
-```
+## 6. Portal and SDK Requirements
 
-Failure behavior:
+Portal views:
 
-- Invalid proof: no credential issue; return `INVALID_PROOF` reason.
-- Unsupported schema: no credential issue; return `SCHEMA_UNSUPPORTED` reason.
-- Provider timeout: mark request `Pending` in off-chain request log only; do not issue on-chain credential.
-- Workflow submission failure: retry with same nonce and evidence hash.
+- Holder credential request, status, expiry, renewal, revocation, and propagation view.
+- Integrator policy builder and access-check simulator.
+- Provider adapter status and schema compatibility.
+- Audit view for credential lifecycle and provider/schema changes.
 
-## 7. CCIP Rules
-
-Credential propagation payload:
-
-```solidity
-struct CredentialMessageV1 {
-    bytes32 ccid;
-    bytes32 credentialType;
-    bytes32 providerId;
-    bytes32 evidenceHash;
-    uint32 schemaVersion;
-    uint64 expiresAt;
-    uint64 updatedAt;
-    uint64 nonce;
-    CredentialStatus status;
-}
-```
-
-Receivers must reject:
-
-- Unknown router.
-- Unknown source chain selector.
-- Unknown source sender.
-- Unsupported payload type.
-- Schema version not supported locally.
-- Nonce less than or equal to current nonce.
-- Credential update for a paused provider unless the update is revocation.
-
-## 8. SDK and Portal Requirements
-
-SDK must expose:
+SDK requirements:
 
 ```ts
-type CredentialState = 'unknown' | 'pending' | 'valid' | 'expired' | 'revoked' | 'disputed';
 async function getCredentialStatus(ccid: string, credentialType: string): Promise<CredentialStatusResult>;
 async function hasValidCredential(ccid: string, requirement: CredentialRequirement): Promise<boolean>;
+async function explainCredentialDecision(ccid: string, requirement: CredentialRequirement): Promise<PolicyDecision>;
 ```
 
-Portal required views:
+## 7. Testing and Verification
 
-- Start credential request.
-- Credential status and expiry.
-- Renewal flow.
-- Revocation request.
-- Destination chain propagation status.
-- Integrator demo that handles all statuses distinctly.
-
-## 9. Test Plan
-
-Required local commands once implementation exists:
+Required checks once implementation exists:
 
 ```bash
 forge fmt --check
@@ -309,57 +168,50 @@ pnpm --dir apps/portal build
 
 Required tests:
 
-- Valid mock proof issues credential.
-- Invalid proof does not issue credential.
-- Raw account handle, transcript, proof, and PII are never emitted or stored.
-- Expired credential fails `hasValidCredential`.
-- Revoked credential fails and propagates revocation.
-- Disputed credential fails access checks.
-- Paused provider blocks new issuance.
-- Unsupported schema rejected.
-- Wrong CCIP router/source/sender rejected.
-- Stale nonce ignored.
-- Destination state exposes last-updated timestamp.
-- SDK handles every credential state safely.
+- Credential issue, renew, suspend, revoke, expire, dispute, and query.
+- Invalid proof and unsupported provider rejection.
+- Provider pause and schema deprecation behavior.
+- CCIP replay, stale nonce, wrong source, wrong sender, and wrong schema rejection.
+- Destination freshness and local policy checks.
+- No raw sensitive data in storage, events, logs, fixtures, or SDK outputs.
+- SDK safe handling of every status.
 
-## 10. Implementation Milestones
+## 8. Production Operations Requirements
 
-1. Scaffold Foundry contracts, test harness, roles, and pause controls.
-2. Implement `ProviderRegistry` and schema support tests.
-3. Implement `CredentialRegistry` and status transition tests.
-4. Implement `CredentialBridge` with authorized workflow submitter.
-5. Implement CCIP sender/receiver using Chainlink Local simulator.
-6. Implement `CCIDResolver` and recovery-salt MVP behavior.
-7. Implement TypeScript mock provider workflow and fixtures.
-8. Implement SDK query helpers and status-safe examples.
-9. Implement minimal portal and integrator demo.
-10. Add deployment scripts, `.env.example`, privacy model, and runbook.
+Before real provider or identity data:
 
-## 11. Deployment and Configuration
+- Privacy review and data flow map.
+- Provider agreement and adapter review.
+- Threat model and external security review.
+- Key management and timelock runbook.
+- Monitoring for provider status, credential volume, failed propagation, stale destination state, and revocation lag.
+- Incident response process for provider compromise, schema bug, privacy leak, and false credential issuance.
 
-Required config keys:
+## 9. Configuration
 
 ```text
 SOURCE_CHAIN_SELECTOR=
-DESTINATION_CHAIN_SELECTOR=
+DESTINATION_CHAIN_SELECTORS=
 CCIP_ROUTER=
 LINK_TOKEN=
-CREDENTIAL_BRIDGE=
 WORKFLOW_SUBMITTER=
 PROVIDER_ADMIN=
 SCHEMA_ADMIN=
 EMERGENCY_GUARDIAN=
 DEFAULT_TTL_SECONDS=
+PROVIDER_CONFIG_URI=
+PRIVACY_POLICY_URI=
 ```
 
-Never commit provider credentials, private keys, raw proofs, transcripts, account handles, or PII.
+Never commit provider credentials, private keys, raw proofs, transcripts, account handles, documents, or PII.
 
-## 12. Definition of Done
+## 10. Definition of Done for Full Product
 
-The MVP is engineering-complete when:
+The product is not complete until:
 
-- Mock zkTLS credential issue, renew, revoke, expire, and propagation flows pass locally.
-- Source and destination registries agree after a CCIP propagation test.
-- SDK and portal demonstrate safe handling of valid, expired, revoked, unknown, pending, and disputed states.
-- No raw proof or PII appears in events, storage structs, fixtures intended for public repo use, or logs.
-- Docs include setup, deploy, test, privacy, security, and recovery instructions.
+- The complete credential lifecycle works on source and destination chains.
+- Multiple credential schemas and provider adapters are supported or cleanly pluggable.
+- SDK and portal guide integrators away from unsafe status handling.
+- Privacy tests prove sensitive data exclusion.
+- Monitoring, runbooks, and incident response exist.
+- Legal/compliance claims are reviewed separately before any regulated use case is marketed.
