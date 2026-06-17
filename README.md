@@ -44,6 +44,7 @@ Identity Bridge zkTLS defines a Chainlink-native credential bridge where users p
 ## Documentation
 
 - [PRD.md](./PRD.md) - canonical product requirements, workflows, architecture, privacy model, risks, verification, and launch criteria.
+- [ENGINEERING_SPEC.md](./ENGINEERING_SPEC.md) - implementation-ready build contract with MVP decisions, contract surfaces, workflow I/O, tests, milestones, and definition of done.
 - [PRODUCT_REQUIREMENTS_DOC.md](./PRODUCT_REQUIREMENTS_DOC.md) - compatibility pointer to the canonical PRD.
 
 ## Implementation Notes
