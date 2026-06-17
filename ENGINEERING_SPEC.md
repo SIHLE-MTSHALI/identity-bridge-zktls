@@ -7,7 +7,7 @@
 
 ## 1. Build Contract
 
-This document is not an MVP brief. It defines the production engineering target for a privacy-preserving credential bridge that can support real providers, real integrators, and cross-chain credential state after security, privacy, and legal readiness gates are satisfied.
+This document defines the production engineering target for a privacy-preserving credential bridge that can support real providers, real integrators, and cross-chain credential state after security, privacy, and legal readiness gates are satisfied.
 
 Engineers should not need product clarification for architecture, credential lifecycle, contract responsibilities, workflow shape, reason codes, tests, or release gates. Escalate only for real provider agreements, legal/compliance claims, production identity data, secrets, or mainnet deployment.
 
