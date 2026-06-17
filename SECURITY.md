@@ -1,72 +1,74 @@
 # Security Policy
 
-## Reporting a Vulnerability
+## Project Status
 
-**DO NOT file a public issue.** Security vulnerabilities must be reported privately.
+Identity Bridge zkTLS is a pre-release Chainlink blueprint. It is not audited, not deployed for production use, and must not be used to process real identity, compliance, or credential data.
 
-- **Email:** security@chainlink-blueprints.dev
-- **Immunefi:** [Bug Bounty Program Link] (coming soon)
-- **Response time:** Acknowledgment within 24 hours, initial assessment within 72 hours
-- **PGP Key:** Available upon request
+No paid bug bounty is active yet. Do not infer reward eligibility unless a future version of this file links to an official bounty program.
 
-## Scope
+## Reporting a Security Issue
 
-| In Scope | Out of Scope |
-|---|---|
-| Smart contracts in `contracts/src/` | Third-party dependencies |
-| CRE workflows in `workflows/` | Front-end application |
-| CCIP integration layer | Infrastructure/CI |
-| Automation upkeeps | Social engineering |
+Do not open a public issue with exploit details, private keys, API keys, raw proofs, TLS transcripts, account handles, PII, or proof-of-concept code.
 
-## Severity Classification
+Preferred reporting path before public launch:
 
-| Severity | Examples | Reward Range |
-|---|---|---|
-| **Critical** | Direct theft of funds, permanent freezing, governance takeover | $50,000+ |
-| **High** | Theft under specific conditions, oracle manipulation enabling >5% value extraction | $10,000–$50,000 |
-| **Medium** | Denial-of-service on core functions, bypassing rate limits | $2,000–$10,000 |
-| **Low** | Incorrect event emissions, gas inefficiencies | $500–$2,000 |
-| **Informational** | Code style issues, documentation errors | Recognition |
+1. Use GitHub private vulnerability reporting if it is enabled for this repository.
+2. If private reporting is not enabled, open a minimal public issue saying only that a private security report is available and ask the maintainer to enable a private channel.
+3. Do not disclose technical details publicly until the issue is acknowledged and a disclosure plan is agreed.
 
-## Responsible Disclosure
+Maintainer response targets are best-effort during pre-release: acknowledge within 7 days and provide an initial severity assessment when enough detail is available.
 
-1. Provide a detailed report with steps to reproduce
-2. Include a runnable Proof of Concept (PoC) — Foundry test strongly preferred
-3. Allow 90 days for remediation before public disclosure
-4. Do not exploit the vulnerability beyond what is necessary to demonstrate it
-5. Do not access, modify, or delete user data
+## Supported Versions
 
-## Security Measures (This Repository)
+| Version | Supported |
+| --- | --- |
+| Public releases | None yet |
+| `main` and active PR branches | Best-effort review only |
 
-This project follows **Crypto/Money Software Development Standards — Mid-2026**:
+## In Scope
 
-- Defense-in-depth reentrancy protection (CEI + Transient ReentrancyGuard + SafeERC20)
-- Granular role-based access control (OpenZeppelin AccessControl, not Ownable)
-- Multi-sig (Safe) + TimelockController for all admin actions
-- Oracle manipulation protection (TWAP, staleness checks, deviation bounds)
-- Emergency pause with separate guardian role
-- Slither + Aderyn passing in CI on every PR
-- ≥90% test coverage with fuzzing and invariant tests
-- Formal verification for contracts holding >$10M TVL
-- Bug bounty program on Immunefi
-- Upgrade safety validation in CI (if upgradeable)
+- Credential schema registry, provider mappings, TTLs, renewal, and revocation policy.
+- zkTLS provider adapter boundaries and proof verification assumptions.
+- CRE proof intake, provider routing, validation, and result submission.
+- Confidential-compute boundaries for raw proof material.
+- Credential registry storage, status transitions, expiry, and revocation state.
+- CCID binding, wallet recovery assumptions, and credential propagation through CCIP.
+- Integrator helper behavior for valid, expired, revoked, unknown, pending, and disputed states.
 
-## Audit History
+## Out of Scope
 
-| Date | Auditor | Scope | Report |
-|---|---|---|---|
-| TBD | TBD | Full protocol | [Link] |
+- Social engineering, phishing, or physical attacks.
+- Vulnerabilities requiring access to maintainer devices or accounts.
+- Findings against third-party zkTLS providers unless they create an integration-specific failure in this repository.
+- Legal compliance opinions or regulatory classifications.
+- Findings against hypothetical production deployments that do not exist.
+- Reward requests when no bounty program has been announced.
+
+## High-Risk Areas
+
+| Risk | Expected mitigation direction |
+| --- | --- |
+| PII or raw proof leakage | No raw identifiers, documents, transcripts, provider responses, or proofs in chain state, events, logs, or commits |
+| Provider compromise | Provider allowlist, per-provider pause, schema versioning, TTLs, and revocation path |
+| Credential replay | Bind proof result to CCID, schema, nonce, chain context, and expiry |
+| Cross-chain spoofing | Validate CCIP router, source chain, source sender, schema version, nonce, and message type |
+| Stale credentials | TTL enforcement, freshness checks, and explicit status handling |
+| Integrator misuse | SDKs must distinguish false, expired, revoked, unknown, pending, and disputed states |
+| Governance abuse | Timelocked provider/schema changes and public events |
+
+## Secure Development Rules
+
+- Never commit secrets, private keys, API keys, access tokens, raw proofs, raw TLS transcripts, provider responses, account handles, or PII.
+- Use placeholders in `.env.example` files only.
+- Before public launch, verify repository remotes, config, docs, and history do not contain embedded credentials.
+- Treat provider responses, user-supplied proof material, adapter payloads, and CCIP messages as attacker-controlled.
+- Add tests for invalid proofs, replay, stale nonce, unsupported provider, revoked provider, expired credentials, wrong CCIP sender, and destination freshness.
+- Keep audit, bounty, provider partnership, and legal-compliance claims out of docs until they are true and linked.
+
+## Audit Status
+
+No external audit has been completed. Any future audit report should be linked here with date, scope, commit hash, and unresolved findings.
 
 ## Disclosure Policy
 
-Vulnerabilities may be publicly disclosed 90 days after remediation, or earlier by mutual agreement. Credit is given to the reporter unless they request anonymity.
-
-## Contact
-
-- **Security Lead:** security@chainlink-blueprints.dev
-- **Discord:** [Chainlink Blueprints Server]
-- **Immunefi Profile:** [Link]
-
----
-
-*This security policy was last updated June 17, 2026.*
+Coordinated disclosure is preferred. Public disclosure should wait until a fix is available or a mutually agreed disclosure date is reached, unless there is active exploitation or user safety risk that requires faster notice.
