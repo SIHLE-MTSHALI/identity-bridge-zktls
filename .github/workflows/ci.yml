@@ -35,6 +35,11 @@ jobs:
         with:
           version: v1.8.4
 
+      # Needed by the contract-size step below.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Cache build artifacts
         uses: actions/cache@v4
         with:
@@ -67,17 +72,10 @@ jobs:
       - name: forge test (invariants, deep)
         run: FOUNDRY_PROFILE=ci forge test --match-path 'contracts/test/invariant/*' -vvv
 
-      # Contract size budget. A contract that no longer fits will silently become
+      # Contract size budget. A contract that no longer fits becomes silently
       # undeployable, which is much worse to discover at release time.
       - name: Contract sizes within limit
-        run: |
-          MAX=$(jq '[.[] | select(.deployedBytecode.object | length > 0) | (.deployedBytecode.object | length / 2)] | max' out/deployedBytecodes.json)
-          LIMIT=24576
-          echo "largest deployed contract: $MAX bytes (EIP-170 limit: $LIMIT)"
-          if [ "$(printf '%s\n' "$MAX > $LIMIT" | bc -l)" -eq 1 ]; then
-            echo "::error::a contract exceeds the EIP-170 deployment limit"
-            exit 1
-          fi
+        run: node scripts/check-contract-sizes.mjs
 
   privacy:
     name: privacy (storage layout)
@@ -120,11 +118,14 @@ jobs:
         with:
           node-version: 20
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+        # No `version:` key: `packageManager` in the root package.json is the
+        # single source of truth. Specifying both makes the action error out.
 
+      # The lockfile is generated on a different platform than CI runs on, so a
+      # plain install rather than --frozen-lockfile. Freshness is asserted in the
+      # hygiene job below instead of failing cryptically here.
       - name: Install
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Typecheck
         run: pnpm run typecheck
@@ -157,10 +158,19 @@ jobs:
             echo "::error::a secret-like file is tracked"
             exit 1
           fi
-          # Fails on identity-bearing field names appearing in source. This is a
-          # backstop behind the storage-layout check, not a replacement for it.
-          if git grep -InE '\b(legalName|fullName|dateOfBirth|passportNumber|taxId|ssn)\b' -- 'contracts/**' 'workflows/src/**' 'packages/**/src/**'; then
-            echo "::error::an identity-bearing field name appears in source"
+          # Fails on identity-bearing *Solidity storage declarations* in production
+          # source. Scoped to `contracts/src/**` deliberately:
+          #   - `contracts/test/**` names these fields in comments documenting the
+          #     mutation cases the privacy tests depend on.
+          #   - `workflows/src/privacy.ts` names them in a *blocklist* - naming a
+          #     field is exactly what forbidding it requires.
+          # Both are legitimate, and a check that flags them creates pressure to
+          # weaken the protections they exist to verify.
+          #
+          # This is a backstop behind `check-no-dynamic-storage.mjs`, not a
+          # replacement: that script walks the compiled layout and is authoritative.
+          if git grep -InE '\b(legalName|fullName|dateOfBirth|passportNumber|taxId|ssn)\b' -- 'contracts/src/**'; then
+            echo "::error::an identity-bearing field name appears in contract source"
             exit 1
           fi
 

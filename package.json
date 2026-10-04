@@ -21,7 +21,9 @@
     "forge:fmt": "forge fmt --check",
     "forge:lint": "forge lint",
     "privacy:storage": "node scripts/check-no-dynamic-storage.mjs",
-    "verify": "pnpm run forge:fmt && pnpm run forge:build && pnpm run privacy:storage && pnpm run forge:test && pnpm run forge:test:invariant && pnpm run typecheck && pnpm run test"
+    "size:check": "node scripts/check-contract-sizes.mjs",
+    "vectors:ccid": "node scripts/generate-ccid-vectors.mjs",
+    "verify": "pnpm run forge:fmt && pnpm run forge:build && pnpm run forge:lint && pnpm run size:check && pnpm run privacy:storage && pnpm run forge:test && pnpm run forge:test:invariant && pnpm run typecheck && pnpm run test"
   },
   "devDependencies": {
     "typescript": "^5.6.3",
