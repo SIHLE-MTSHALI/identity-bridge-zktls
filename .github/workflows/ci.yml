@@ -1,0 +1,179 @@
+name: CI
+
+# Runs every gate listed in ENGINEERING_SPEC.md section 7, plus the storage-layout
+# privacy check. Anything that could pass locally and fail here - formatting,
+# line endings, an unwritten parity vector - is what this job exists to catch.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A stale PR run tells you nothing; cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: contracts (forge)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Submodules carry forge-std and OpenZeppelin; `lib/` is gitignored.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.4
+
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.foundry
+            out
+            cache
+          key: forge-${{ hashFiles('foundry.toml') }}-${{ github.sha }}
+          restore-keys: forge-${{ hashFiles('foundry.toml') }}-
+
+      - name: forge fmt --check
+        run: forge fmt --check
+
+      - name: forge build
+        run: forge build --sizes
+
+      - name: forge lint
+        run: forge lint
+
+      - name: forge test
+        run: forge test -vvv
+
+      # Spec-mandated as a separate command so invariant failures are
+      # distinguishable from unit failures in the job log.
+      - name: forge test (invariants)
+        run: forge test --match-path 'contracts/test/invariant/*' -vvv
+
+      # Deeper runs for the invariant suite only: these are the properties that
+      # must hold unconditionally, and 256x128 finds far more than 64x32.
+      - name: forge test (invariants, deep)
+        run: FOUNDRY_PROFILE=ci forge test --match-path 'contracts/test/invariant/*' -vvv
+
+      # Contract size budget. A contract that no longer fits will silently become
+      # undeployable, which is much worse to discover at release time.
+      - name: Contract sizes within limit
+        run: |
+          MAX=$(jq '[.[] | select(.deployedBytecode.object | length > 0) | (.deployedBytecode.object | length / 2)] | max' out/deployedBytecodes.json)
+          LIMIT=24576
+          echo "largest deployed contract: $MAX bytes (EIP-170 limit: $LIMIT)"
+          if [ "$(printf '%s\n' "$MAX > $LIMIT" | bc -l)" -eq 1 ]; then
+            echo "::error::a contract exceeds the EIP-170 deployment limit"
+            exit 1
+          fi
+
+  privacy:
+    name: privacy (storage layout)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.8.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Compiled storage layout must declare no dynamic members on the
+      # PII-sensitive contracts. Catches a `string` field added but never written,
+      # which a runtime scan cannot see.
+      - name: No dynamic storage in credential contracts
+        run: node scripts/check-no-dynamic-storage.mjs
+
+      # The parity vectors must match what the contract produces *now*. A stale
+      # committed vector would make the parity test meaningless.
+      - name: CCID vectors are up to date
+        run: |
+          node scripts/generate-ccid-vectors.mjs
+          if ! git diff --quiet -- workflows/test/vectors/ccid-vectors.json; then
+            echo "::error::CCID parity vectors are stale. Run: node scripts/generate-ccid-vectors.mjs"
+            git diff -- workflows/test/vectors/ccid-vectors.json
+            exit 1
+          fi
+
+  typescript:
+    name: typescript (sdk + workflows)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: SDK tests
+        run: pnpm --dir packages/sdk test
+
+      - name: Workflow tests
+        run: pnpm --dir workflows test
+
+  hygiene:
+    name: repository hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Line endings are normalized by .gitattributes. A CRLF checkout breaks
+      # `forge fmt --check` on files nobody touched, so verify rather than assume.
+      - name: No CRLF line endings
+        run: |
+          if git grep -Il $'\r' -- . ':!pnpm-lock.yaml'; then
+            echo "::error::CRLF line endings found; run: git add --renormalize ."
+            exit 1
+          fi
+
+      - name: No committed secrets or identity data
+        run: |
+          # Fails on the filenames that must never exist in the repository.
+          if git ls-files | grep -Ei '\.(env|keystore|pem|key|p12|pfx)$|(^|/)(secrets?|credentials?)\.(json|yaml|yml|toml)$'; then
+            echo "::error::a secret-like file is tracked"
+            exit 1
+          fi
+          # Fails on identity-bearing field names appearing in source. This is a
+          # backstop behind the storage-layout check, not a replacement for it.
+          if git grep -InE '\b(legalName|fullName|dateOfBirth|passportNumber|taxId|ssn)\b' -- 'contracts/**' 'workflows/src/**' 'packages/**/src/**'; then
+            echo "::error::an identity-bearing field name appears in source"
+            exit 1
+          fi
+
+      - name: Docs contain no unverified claims
+        run: |
+          # The repository has no audit and no deployment. Documentation that
+          # implies otherwise is the fastest way to mislead a reader, and the
+          # fastest way to lose a user's trust.
+          #
+          # The lookbehind excludes negated claims, because stating "it is not
+          # audited" is exactly what SECURITY.md must do. A check that fires on
+          # the disclaimer would pressure someone into deleting the disclaimer.
+          if git grep -InP '(?<!not )(?<!no )\b(audited|security audit (is )?complete|production[- ]ready|mainnet (is )?live)\b' -- '*.md'; then
+            echo "::error::documentation claims an audit or production deployment that does not exist"
+            exit 1
+          fi

@@ -4,9 +4,20 @@ Thank you for helping improve Identity Bridge zkTLS. This project is intended to
 
 ## Current Stage
 
-The repository is in product and architecture design. Treat `PRD.md` as the canonical product specification and `ENGINEERING_SPEC.md` as the engineering build contract.
+The core contracts, CRE workflows, and SDK are implemented and tested. `PRD.md` remains the canonical product specification and `ENGINEERING_SPEC.md` the engineering build contract.
 
-Do not add claims about production deployments, supported regulated use, legal compliance, audits, Chainlink endorsement, bug bounties, or provider partnerships unless there is verifiable evidence in the repository.
+What exists today is verified by `pnpm run verify`. What does **not** exist is listed in [README.md](./README.md#what-is-and-is-not-built) — notably `apps/portal`, any real provider integration, and any deployment — and ranked as gaps in [docs/audit-readiness.md](./docs/audit-readiness.md).
+
+Do not add claims about production deployments, supported regulated use, legal compliance, audits, Chainlink endorsement, bug bounties, or provider partnerships unless there is verifiable evidence in the repository. A CI gate fails the build if documentation claims an audit or production deployment that does not exist.
+
+### Changes that need a mutation check
+
+Two checks in this repository were found to pass while proving nothing, and both were fixed:
+
+- The privacy storage scan could not see an **unused** `string` field. `scripts/check-no-dynamic-storage.mjs` now inspects the compiled layout.
+- The invariant suite could not reach the `revoke → resume` sequence, so its terminality check was vacuous. The handler now uses a ghost-variable key pool and compound actions.
+
+If you add a check that claims to enforce a safety property, break the property and confirm the check fails before asking for review. A green check that has never been shown to fail is not evidence.
 
 ## Contribution Focus
 

@@ -1,0 +1,85 @@
+{
+  "domain": "0xe58baad8cee0c4139b560d2fa5e0c7bd29599967c95dc908e7ee490b5713a657",
+  "vectors": [
+    {
+      "credentialTypeLabel": "kyc.basic",
+      "providerIdLabel": "provider.reclaim",
+      "subjectLabel": "subject-alice",
+      "credentialType": "0x71389c3c607929c3bacb18fee6a304d8e2f68a55746507b46d1b9529064596d5",
+      "schemaVersion": 1,
+      "providerId": "0xda5b1051389aa4f04aa2cd733d83bb6d04e3320ddc7a68fce8ffafe003a7e902",
+      "subjectCommitment": "0xa1090e3655969364c15d0b72dd2099017118aa61830fdc3b62ad2c84867343ee",
+      "ccid": "0xb8dd1764f4a9dbe91c18df7386af324a934c3fab56c6a9b3ba6beaf57f3337a9"
+    },
+    {
+      "credentialTypeLabel": "kyc.basic",
+      "providerIdLabel": "provider.mock-zktls",
+      "subjectLabel": "subject-bob",
+      "credentialType": "0x71389c3c607929c3bacb18fee6a304d8e2f68a55746507b46d1b9529064596d5",
+      "schemaVersion": 2,
+      "providerId": "0xf1c9433d84932f5dcc3185561d45706d6d9c380753baa930f8f21b732a2211c3",
+      "subjectCommitment": "0x57f3895da9dc5bfb8219e00db2203ad4b6a6e41715542a0d45e7f2b6cb3a1120",
+      "ccid": "0xbecd237eef575778b0a3f7ff984238548b3dc0958f16bd9c7a2da46aa0ceb659"
+    },
+    {
+      "credentialTypeLabel": "accreditation.investor",
+      "providerIdLabel": "provider.reclaim",
+      "subjectLabel": "subject-carol",
+      "credentialType": "0x6c5d6ba8317753c090fc11f7c35bd14e41c8c04bc0796944c3782185b7051bd1",
+      "schemaVersion": 1,
+      "providerId": "0xda5b1051389aa4f04aa2cd733d83bb6d04e3320ddc7a68fce8ffafe003a7e902",
+      "subjectCommitment": "0x1e2716ffe5f09c6562d3b553fbc7a6e981b62c34d7a5cf5cf575c7fdde3682ea",
+      "ccid": "0xea3ca7f02c439ad0ebc73ce951cdf80430c265a46e235e9250d65eb35d6c5c38"
+    },
+    {
+      "credentialTypeLabel": "kyc.basic",
+      "providerIdLabel": "provider.reclaim",
+      "subjectLabel": "subject-dave",
+      "credentialType": "0x71389c3c607929c3bacb18fee6a304d8e2f68a55746507b46d1b9529064596d5",
+      "schemaVersion": 0,
+      "providerId": "0xda5b1051389aa4f04aa2cd733d83bb6d04e3320ddc7a68fce8ffafe003a7e902",
+      "subjectCommitment": "0xe5485e575a1d3ed694a1aa9316fd9cd2b8b096c719bcfb923dca21cb8876e204",
+      "ccid": "0xd279305a39726c4cb80c3b58b422f86c1cf98ccb4e18f20e5083155409537261"
+    },
+    {
+      "credentialTypeLabel": "kyc.basic",
+      "providerIdLabel": "",
+      "subjectLabel": "subject-erin",
+      "credentialType": "0x71389c3c607929c3bacb18fee6a304d8e2f68a55746507b46d1b9529064596d5",
+      "schemaVersion": 1,
+      "providerId": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      "subjectCommitment": "0x445b23196b1ee0ed03e7d2af06d9d83fe78ae73aab3e9464283e234c974deac8",
+      "ccid": "0x197eb42e71dd71959cae28c052957911082c73530f4cdcbe365322d432f0d483"
+    },
+    {
+      "credentialTypeLabel": "kyc.basic",
+      "providerIdLabel": "provider.reclaim",
+      "subjectLabel": "",
+      "credentialType": "0x71389c3c607929c3bacb18fee6a304d8e2f68a55746507b46d1b9529064596d5",
+      "schemaVersion": 1,
+      "providerId": "0xda5b1051389aa4f04aa2cd733d83bb6d04e3320ddc7a68fce8ffafe003a7e902",
+      "subjectCommitment": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      "ccid": "0xbc0a0bcf845af6bd3cab74d53e8266b5c77727ff6293b65cd6b4e5b70dcb0b68"
+    },
+    {
+      "credentialTypeLabel": "",
+      "providerIdLabel": "provider.reclaim",
+      "subjectLabel": "subject-frank",
+      "credentialType": "0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+      "schemaVersion": 1,
+      "providerId": "0xda5b1051389aa4f04aa2cd733d83bb6d04e3320ddc7a68fce8ffafe003a7e902",
+      "subjectCommitment": "0xf07329daa50c47e2ccc5f5d2eda9a290c0dd99d740a82039e58d0aad33a40ee9",
+      "ccid": "0xcb9559ac46d155241dcca3ce61ccb8078548351060c8290cfe97d883e4616bcf"
+    },
+    {
+      "credentialTypeLabel": "kyc.basic",
+      "providerIdLabel": "provider.reclaim",
+      "subjectLabel": "subject-grace",
+      "credentialType": "0x71389c3c607929c3bacb18fee6a304d8e2f68a55746507b46d1b9529064596d5",
+      "schemaVersion": 4294967295,
+      "providerId": "0xda5b1051389aa4f04aa2cd733d83bb6d04e3320ddc7a68fce8ffafe003a7e902",
+      "subjectCommitment": "0xde4083098586e32a99f6b1949bf8a1364e7c9c6f6b32d3e8cccaed85c773dca6",
+      "ccid": "0xea03753e96b85d0884794c2a830969bc464533567d50fe07621462671f9fb43d"
+    }
+  ]
+}

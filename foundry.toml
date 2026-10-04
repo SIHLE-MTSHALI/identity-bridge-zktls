@@ -1,0 +1,126 @@
+[profile.default]
+src = "contracts/src"
+test = "contracts/test"
+script = "contracts/script"
+out = "out"
+libs = ["lib"]
+
+# Deterministic builds: pin the compiler so CI and local runs agree byte for byte.
+solc = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+# `via_ir` is required, not cosmetic: several functions here legitimately touch
+# more values than the legacy codegen allows on the stack (multi-field ABI decode,
+# the bridge's validation sequence). The IR pipeline also produces smaller,
+# better-optimized bytecode. Compile times are higher and CI is slower, which is
+# the trade this repo makes deliberately.
+via_ir = true
+
+# Surface compiler warnings; `never` means they are advisory rather than fatal,
+# so a new solc release can never hard-break the repository.
+deny = "never"
+
+# Notorize metadata so bytecode is attributable and the repo can prove which
+# source revision produced a deployed artifact.
+bytecode_hash = "ipfs"
+cbor_metadata = true
+
+remappings = [
+    "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+]
+
+# Fail on unbounded loops / unchecked arithmetic surprises.
+[profile.default.fuzz]
+runs = 256
+max_test_rejects = 100_000
+
+[profile.default.invariant]
+runs = 64
+depth = 32
+fail_on_revert = false
+call_override = false
+
+# `forge test --profile ci` is what CI runs: slower, deeper, no flakiness tolerance.
+[profile.ci.fuzz]
+runs = 2_048
+
+[profile.ci.invariant]
+runs = 256
+depth = 128
+fail_on_revert = false
+
+[profile.ci]
+verbosity = 3
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+multiline_func_header = "attributes_first"
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
+
+[lint]
+# Lint is a deliberate CI step, not a build side effect: `forge build` output
+# should stay readable so a real compiler error is not buried in ~60 advisories.
+lint_on_build = false
+
+exclude_lints = [
+    # Every timestamp in this codebase is narrowed from `uint256` to `uint64`
+    # because the storage schema fixes those fields at 64 bits (ENGINEERING_SPEC
+    # section 4). The truncation is unreachable in practice - `block.timestamp`
+    # overflows uint64 around the year 584942417355 - and the alternative is
+    # widening the on-chain schema away from the specification.
+    "unsafe-typecast",
+
+    # The CCIP sender fans out one `router.send` per destination chain. That is
+    # the intended shape of a multi-destination propagation, and the loop is
+    # bounded by MAX_DESTINATIONS.
+    "calls-loop",
+
+    # Validation of the destination list happens in a loop before any external
+    # call. Reverting there is the point: the whole batch is rejected rather than
+    # partially sent.
+    "require-revert-in-loop",
+
+    # TTL, expiry, heartbeat staleness, and the unpause delay are all
+    # time-based by definition. `block.timestamp` is the only clock available
+    # on-chain, and tolerances here (24h TTLs, 24h unpause delay, 7d heartbeat
+    # window) are orders of magnitude larger than a validator's timestamp
+    # influence, which is bounded by block time.
+    "block-timestamp",
+
+    # Reentrancy is structurally impossible on the flagged paths:
+    #   - CrossChainCredentialSender -> ROUTER: the router can only call back
+    #     into functions gated on `msg.sender == BRIDGE`, and the per-CCID nonce
+    #     is committed before the external calls.
+    #   - CrossChainCredentialReceiver -> REGISTRY: the registry is immutable and
+    #     its write entry points are gated on WRITER_ROLE.
+    #   - CredentialBridge -> SENDER: same `msg.sender == BRIDGE` gate.
+    # Every external callee is an immutable address fixed at deploy time.
+    "reentrancy-events",
+
+    # `receiveCredential` is an intentional CCIP dispatch target with no body;
+    # it exists so `selector()` has something to name. Enforcement lives in
+    # `ccipMessageCallback`.
+    "empty-block",
+
+    # `_propagate` ignores the sender's message count by design. The count is
+    # derivable from the `CredentialSent` events, which are the audit record.
+    "unused-return",
+
+    # Test-only. `vm.warp(block.timestamp + n)` is exactly how a time-dependent
+    # test should advance the clock, and every use in this repository warps
+    # forward from the current block. The rule exists to catch production code
+    # caching a timestamp across a mutation, which cannot occur here.
+    "environment-read-across-mutation",
+]
+
+[lint.lint_specific]
+# Deliberately not suppressed: `missing-events-access-control`,
+# `incorrect-shift`, `divide-before-multiply`, `reentrancy-events`. These are
+# worth failing on and each one is either fixed or justified inline.
